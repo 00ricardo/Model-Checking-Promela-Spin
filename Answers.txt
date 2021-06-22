@@ -1,0 +1,247 @@
+
+
+----------------------------------------------------------------Relatório-------------------------------------------------------------
+
+													     Universidade de Coimbra	
+												  Departamento de Engenharia Informática
+
+												  Qualidade e Confiabilidade de Software
+
+Docentes:
+	Henrique Santos do Carmo Madeira
+	João Tiago Márcia do Nascimento Fernandes
+	Raul André Brajczewski Barbosa
+
+Autores: 
+	Carlos João Lopes Mendes (2017257272)
+	Filipe Miguel Fonseca do Santos (2017271196)
+	Ricardo David da Silva Briceño (2020173503)
+
+
+----------------------------------------------------------------Questão 1-------------------------------------------------------------
+Switches:
+	Spin: -a
+	C Compiler: -DSAFETY -o pan pan.c
+	Pan Verifier: -m10000 -X
+
+Para este problema usámos uma variável fantasma, "count", que serve para contabilizar o número de processos dentro da região crítica. Quando um processo entra nesta região, o contador é incrementado por 1. De seguida, para verificar a exclusão mútua, aplicamos um assert, para garantir que nunca há mais que um processo na região crítica. Finalmente, o contador diminui uma unidade, quando o processo sai da região crítica.
+
+Através da opção verify do spin, podemos dizer que a propriedade do modelo é assegurada. Isto pois não foram detetados nenhuns erros ao fazer expansão do grafo.
+
+Neste caso, não temos problemas de a depth ser pequena demais, já que não aparece a mensagem "error: max search depth too small".
+
+
+
+----------------------------------------------------------------Questão 2-------------------------------------------------------------
+Switches:
+	Spin: -a
+	C Compiler: -DSAFETY -o pan pan.c
+	Pan Verifier: -m100000 -X
+
+Com a condição if especificada em baixo conseguimos simular as esperas de duração indeterminadas. Ambas as condições do if estão sempre a verdadeiro, sendo possível que o spin escolha qualquer uma delas de forma não determinística. Na primeira simplesmente avançamos para o resto do código, enquanto que na segunda um statement (false) é usado para bloquear o processo. Para evitar gerar um invalid end state é utilizada a label endxyz.
+		if
+			:: true -> skip;
+			:: true -> 
+				endxyz:		(false);
+		fi	
+
+
+
+----------------------------------------------------------------Questão 3-------------------------------------------------------------
+
+
+
+Switches:
+	Random
+		Spin: -X  -u100000
+	Verify
+		Spin: -a
+		C Compiler: -DSAFETY -o pan pan.c
+		Pan Verifier: -m100000 -X
+
+Em caso de deadlock é reportado um erro de "invalid end state" ao fazer "verify", já que não há statements executáveis e o program counter não se encontra num local de fim válido (fim do processo ou end label). Porém, no nosso modelo, já com o comportamento de processos poderem parar por período indeterminado de tempo, isto não se verifica. 
+
+Ou seja, o modelo da solução de Peterson está livre de deadlocks, pois não aparecem erros ao correr o verify. Mesmo que um processo "0" fique parado indefinidamente, o outro ainda será capaz de executar uma instrução. Não sendo a paragem do processo "0" considerado um invalid end state no statement dentro do "if" adicionado e conseguindo o processo "1" executar uma instrução, não é encontrado invalid end state, ou seja, não há deadlock.
+
+Ao correr simulações random para testes adicionais, obtemos timeouts devido a um deadlock, mas é apenas o caso em que ambos os processos ficam bloqueados no statement dentro do if. Como isto não está relacionado com o algoritmo de Peterson (esta situação em que todos os processos estão parados), este deadlock não é considerado (daí a utilização do end label endxyz).
+			
+Além disso, verifica-se sempre a assertion relacionada com a exclusão mútua, como podemos ver pela falta de erros ao fazer verify.
+
+
+
+----------------------------------------------------------------Questão 4-------------------------------------------------------------
+
+Switches:
+	Random
+		Spin: -X  -u100000
+	Verify
+		Spin: -a
+		C Compiler: -DSAFETY -o pan pan.c
+		Pan Verifier: -m100000 -X	
+	Guided
+		Spin: -p -l -g -s -r  -t -X -u100000	
+
+Para construir o modelo dos "dining philosophers" adicionámos uma variável partilhada "forks[N]". Esta variável tem em conta, para cada garfo, se este está a ser usado (= pid + 1) ou não (0). Os garfos correspondentes a cada filósofo seguem esta regra: o garfo da esquerda é o com o índice igual ao _pid do processo; o garfo da direito é o que tem índice igual a (_pid + 1)%N, para tratar o caso do último processo (filósofo), que usa o primeiro garfo (índice 0) como garfo da mão direita. 
+
+Para garantir que só um filósofo levanta um garfo de cada vez, primeiro o processo correspondente verifica se o seu garfo da esquerda não está a ser utilizado (valor 0). Só quando a condição se torna verdade é que deixa de esperar e coloca o valor do garfo igual a (pid + 1), para identificar quem tem o garfo. De seguida, segue a mesma lógica para o garfo da direita. 
+
+Em relação a pousar os garfos, são colocados a 0 os garfos com os índices correspondentes ao processo (filósofo). Primeiro o garfo da esquerda e só depois o da direita.	
+				
+Ao fazer simulações com random, estas podem levar a timeouts. Ao fazer uma verificação e a utilizar o guided, notámos que o problema passa por situações em que todos os filósofos têm 1 garfo, não conseguindo nenhum deles avançar (como não conseguem ter 2 garfos e não têm mecanismo para pousar o garfo que têm).
+
+É possível que 2 filósofos cheguem a utilizar o mesmo garfo em simultâneo. Isto deve-se à falta de sequências atómicas quando se (1) verifica se um garfo está a ser utilizado, (2) o filósofo levanta o garfo. Porém, apenas ao correr simulações random não conseguimos confirmar isto de forma adequada. No exemplo seguinte não conseguimos garantir que os garfos estão a ser utilizados em simultâneo, sendo necessárias verificações adequadas.
+	Output Exemplo:
+		philosopher 0 eats using forks 0 and 1
+		philosopher 4 eats using forks 4 and 0
+		philosopher 0 thinks ...
+
+
+
+----------------------------------------------------------------Questão 5-------------------------------------------------------------
+
+Switches:
+	Verify
+		Spin: -a
+		C Compiler: -DSAFETY -o pan pan.c
+		Pan Verifier: -m10000 -X -E	
+	Guided
+		Spin: -p -l -g -s -r  -t -X -u100000				 
+
+Para especificar esta propriedade começámos por criar um array forksCount [N]. Este contém o número de filósofos que estão a utilizar cada garfo ao mesmo tempo. A ideia é nunca ter um valor do array superior a 1. 
+
+Após levantar o garfo da esquerda, incrementamos o valor do índice do forksCount correspondente, pois há mais 1 filósofo a utilizar o garfo. De seguida, verificamos se o número de filósofos a usar esse garfo é 1, através de um assert ( (forksCount [_pid] == 1) ). Se não se verificar, é porque outro filósofo também o está a usar. A mesma lógica foi aplicada ao garfo da direita, mas com um assert (forksCount [ (_pid + 1)%N ] == 1).
+
+Devido ao deadlock referido na pergunta anterior (4), para avaliar a propriedade de exclusão mútua corretamente, primeiro tivemos de conseguir ignorar os invalid end states, de forma a conseguirmos realizar uma verificação (correndo o verify) para todos os estados a que o grafo chega. Sem isto, seria detetado o erro de deadlock e não seriam reportados quaisquer erros que pudessem surgir após este, não sendo a condição do assert verificada de forma correta. Para podermos ignorar invalid end states tivemos de adicionar a runtime option -E às opções do pan.
+
+Com essa alteração feita, corremos o verify e ao chegar a depth 210 foi encontrado um erro de assertion violated: "pan:1: assertion violated (forksCount[_pid]==1) (at depth 210)". Ou seja, na expansão do grafo foi encontrada uma contradição do assert, pelo que não é verificada a propriedade de exclusão mútua. Ao correr o guided reparámos que o problema era o facto de um garfo estar a ser utilizado por 2 filósofos em simultâneo, o que claramente contraria a assertion que especificámos, como se pode verificar no output seguinte.
+	Output:
+		forksCount[0] = 0
+		forksCount[1] = 1
+		forksCount[2] = 1
+		forksCount[3] = 0
+		forksCount[4] = 2
+
+As operações que ocorrem em relação aos garfos não são feitas de forma atómica (verificar que ninguém está a usar o garfo e apanhá-lo). Assim, é normal que os asserts especificados sejam contrariados, pois é possível 2 filósofos apanharem o mesmo garfo e só depois colocarem o forks [x] correspondente com o seu _pid.
+
+
+
+----------------------------------------------------------------Questão 6-------------------------------------------------------------
+
+Switches:
+	Verify
+		Spin: -a
+		C Compiler: -DSAFETY -o pan pan.c
+		Pan Verifier: -m10000 -X -E	
+	Guided
+		Spin: -p -l -g -s -r  -t -X -u100000	
+
+
+Para começar, criámos um assert que conseguisse verificar esta propriedade, assert ( (forks [_pid] == (_pid+1) ) && (forks [ (_pid + 1)%N ] == (_pid+1) ) ), colocado após o filósofo ter levantado cada um dos garfos. Ou seja, queremos ter a certeza que na ação de comer, o filósofo tem realmente ambos os garfos. O (pid + 1) é o que permite identificar o filósofo que tem os garfos, para termos a certeza que não é outro filósofo que os está a usar.
+
+Tal como na questão anterior (5) utilizámos a opção -E no pan, para evitar que um erro de deadlock parasse a verificação, não sendo possível detetar problemas com o novo assert.
+
+Para além disso, comentámos os asserts relativos à questão anterior. Caso contrário, seria possível que um desses asserts fosse contrariado, não sendo necessariamente validado o atributo que pretendemos verificar nesta questão.
+
+Foi detetado um erro ao fazer verify: "pan:1: assertion violated ((forks[_pid]==(_pid+1))&&(forks[((_pid+1)%5)]==(_pid+1))) (at depth 96)". Ao correr o guided obtemos o output que se encontra em baixo. Neste, podemos verificar que o 4º filósofo (_pid=3) está a tentar utilizar os garfos nos índices 3 e 4. Porém, o garfo do índice 4 já se encontra na posse do 5º filósofo, como podemos ver pelo "forks[4] = 5" e pelo facto do Count correspondente estar a 2. Assim, é contrariada a propriedade definida pelo assert, já que um filósofo iria comer sem ter na verdade ambos os garfos.
+	Output:
+		forks[0] = 5
+		forks[1] = 0
+		forks[2] = 0
+		forks[3] = 4
+		forks[4] = 5
+		forksCount[0] = 1
+		forksCount[1] = 0
+		forksCount[2] = 0
+		forksCount[3] = 1
+		forksCount[4] = 2
+
+
+
+----------------------------------------------------------------Questão 7-------------------------------------------------------------
+
+Switches:
+	Random
+		Spin: -X  -u100000
+	Verify
+		Spin: -a
+		C Compiler: -DSAFETY -o pan pan.c
+		Pan Verifier: -m100000 -X -E	
+			Nota: -E foi usado apenas em algumas verificações, como explicado em baixo
+	Guided
+		Spin: -p -l -g -s -r  -t -X -u100000
+
+Fizemos com que as 3 instruções (verificar se o garfo está a ser usado, levantar o garfo e incrementar o contador respetivo) relativas a levantar garfos fossem atómicas, através da keyword "atomic". Ou seja, garantimos que apenas um processo tem acesso ininterrupto à variável partilhada (fork correspondente à ação de levantar o garfo). Em relação a pousar os garfos, garantimos através de sequências atómicas que cada garfo é pousado e o contador respetivo diminui uma unidade de forma atómica.
+
+Assim, é natural que os asserts relativos à exclusão mútua (pergunta 5) não sejam contrariados, pois cada filósofo só consegue progredir se um garfo não está a ser usado, apanhando-o de seguida (tudo de forma atómica).
+
+Como não foram apresentados nenhuns erros ao correr o verify com a switch -E (mais uma vez, para ignorar erros de invalid end state), podemos assumir que a propriedade relativa à pergunta 6 também está garantida. Mais uma vez, isto deve-se à introdução de sequências atómicas, pois já não é possível um segundo filósofo "roubar" o garfo a um que já o tinha (pois o primeiro verifica se o pode usar e levanta-o de forma atómica).
+
+Ao correr várias simulações aleatórias podemos notar que obtivemos timeouts. Isto deve-se ao problema de deadlock mencionado na pergunta 4, ainda não resolvido, que tem como origem a situação em que todos os filósofos têm 1 garfo (como não conseguem ter 2 garfos e não têm mecanismo para pousar o garfo que têm), o que se pode concluir ao fazer verify e depois correr o guided. Este comportamento era previsível, tendo em conta os dados que já tínhamos.
+
+
+
+----------------------------------------------------------------Questão 8-------------------------------------------------------------
+
+Switches:
+	Verify
+		Spin: -a
+		C Compiler: -DSAFETY -o pan pan.c
+		Pan Verifier: -m100000 -X	
+	Guided
+		Spin: -p -l -g -s -r  -t -X -u100000
+
+Esta propriedade não é garantida pelo modelo. Como já dissemos em questões anteriores é fácil encontrar um contraexemplo. Neste caso, o problema é quando cada um dos filósofos tem apenas 1 garfo. Ou seja, nenhum deles consegue avançar, já que necessita de 2 garfos para conseguir comer. Também ficam bloqueados pois não têm nenhuma condição para pousar o garfo.
+
+
+
+----------------------------------------------------------------Questão 9-------------------------------------------------------------
+
+Switches:
+	Verify
+		Spin: -a
+		C Compiler: -DSAFETY -o pan pan.c
+		Pan Verifier: -m100000 -X	
+
+Para resolver o problema dos deadlocks modificámos a condição ( forks [ (_pid + 1)%N ] == 0 ), que aparece na segunda sequência atómica (verificar se o garfo da direita está livre e usá-lo). Colocámos a condição num if. Se esta for verificada, então levanta o garfo da direita e continua normalmente. Porém, se não se verificar, é utilizado um "goto" para ir antes para o fim do código, em que pousa o garfo que já tinha levantado, de forma a evitar deadlocks. 
+
+Em relação ao comportamento adicional, os filósofos poderem ficar a pensar indefinidamente sem quererem comer, conseguimos adicioná-lo de forma semelhante ao que fizemos na pergunta 2. Seguindo a mesma lógica utilizada nessa pergunta, é possível simular esperas indeterminadas (neste caso, de filósofos a pensar).
+
+Podemos dizer que o modelo resolve os problemas de exclusão mútua e de deadlock freedom. Isto, pois não apresenta nenhum erro ao fazer o verify, já tendo ambas as propriedades a serem especificadas (a exclusão mútua através da pergunta 5 e a de deadlocks pela verificação de invalid end states). Para além disso, verificamos as propriedades já tendo o comportamento da espera dos filósofos modelado.
+
+----------------------------------------------------------------Questão 10------------------------------------------------------------
+
+Switches:
+	Verify
+		Spin: -a
+		C Compiler: -DSAFETY -o pan pan.c
+		Pan Verifier: -m100000 -X	
+	Verify (acceptance, com e sem weak fairness)
+		Spin: -a
+		C Compiler: -o pan pan.c
+		Pan Verifier: -f  -a  -m100000 -X	
+			Nota: Para testar sem weak fairness removemos o -f
+
+Ao fazer o verify não foram encontrados nenhuns erros.
+
+Em relação à exclusão mútua, propriedade de "safety", esta é verificada com um assert do número de cada elemento do forksCount, comportamento adicionado na pergunta 5. Verificamos, devido à falta de erros, que a propriedade está bem modelada. Ou seja, as sequências atómicas que adicionámos na pergunta 7 são o suficiente para garantir que se um filósofo nota que um garfo não está a ser usado, levanta-o (tudo de forma atómica).
+
+Para a correctness property de os filósofos só poderem comer se têm ambos os garfos, esta é verificada através de um assert ( (forks [_pid] == (_pid+1) ) && (forks [ (_pid + 1)%N ] == (_pid+1) ) ). Este verifica que o nosso identificador do filósofo (pid + 1) está em ambos os garfos. Ou seja, o filósofo só pode avançar se realmente possuir o seu garfo da esquerda e o da direita em simultâneo. 
+
+Em termos de "deadlock freedom", que é uma propriedade de "liveness", esta é avaliada pela inexistência de invalid end-states, o que se pode extrair do número de erros ser 0 (se tivesse, então daria 1 erro de invalid end-state). Para assegurar esta propriedade tivemos o cuidado de verificar se o segundo garfo estava disponível, caso contrário este é pousado e não se levanta o outro (comportamento adicionado na pergunta 9). Podemos dizer que, apesar de garantirmos esta propriedade, não se tem um grande nível de "fairness". Isto, pois não estamos a garantir que, por exemplo, todos os filósofos têm acesso aos garfos um número semelhante de vezes. Apenas garantimos que, eventualmente, pelo menos alguns deles conseguem continuar, nunca ficando o sistema em deadlock. 
+
+Na verdade, o que poderia garantir "fairness" seria algo externo ao algoritmo. Por exemplo, utilizar um scheduler que respeite "weak fairness". Para que, em caso de ciclo infinito, um statement de um outro processo consiga executar (evitando situações em que um só filósofo continua a percorrer o ciclo, enquanto os outros não executam instruções). 
+
+No caso do nosso modelo não estamos a realizar verificações, por exemplo com ltl, para garantir que todos os processos conseguem eventualmente realizar uma instrução. Sendo assim, fazer testes de acceptance com ou sem fairness tem o mesmo resultado (0 erros).
+
+
+---------------------------------------------------------------------FIM---------------------------------------------------------------
+
+
+
+
+
+
+
+			
+
+
